@@ -1,0 +1,27 @@
+[project]
+name = "vision"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Kenneth Lew",email = "kennethlew001@gmail.com"}
+]
+requires-python = ">=3.13"
+dependencies = [
+    "maixpy (>=4.12.5,<5.0.0)",
+    "protobuf (>=7.35.0,<8.0.0)"
+]
+
+[dependency-groups]
+dev = [
+    "grpcio-tools (>=1.83.0,<2.0.0)"
+]
+
+[project.scripts]
+compile-proto = "scripts.compile_proto:main"
+
+[tool.poetry]
+packages = [{include = "scripts"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

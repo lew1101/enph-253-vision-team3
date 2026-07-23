@@ -1,0 +1,15 @@
+# Environments
+.env
+.envrc
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+.vscode
+.idea
+
+.DS_Store
+.cache
