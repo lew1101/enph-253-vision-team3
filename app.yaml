@@ -1,0 +1,19 @@
+id: rs_team3
+name: enph-253-team3-vision
+version: 3.3.0
+author: Kenneth Lew
+icon: ''
+desc: Teletubby Detector
+files:
+  - model\yolo26n_int8.cvimodel
+  - model\yolo26n.mud
+  - scripts\__init__.py
+  - scripts\compile_proto.py
+  - .git
+  - app.yaml
+  - main.py
+  - poetry.lock
+  - pyproject.toml
+  - runtime_log.py
+  - uart.py
+  - vision_pb2.py

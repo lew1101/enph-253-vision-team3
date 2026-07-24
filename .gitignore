@@ -8,6 +8,9 @@ ENV/
 env.bak/
 venv.bak/
 
+dist/
+build/
+
 .vscode
 .idea
 

@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 
-from maix import app, camera, err, nn, pinmap, uart
+import sys
+import os
+import time
+
+with open("/root/vision_autostart.log", "a", encoding="utf-8") as f:
+    f.write(f"App started: pid={os.getpid()}, time={time.time()}\n")
+    f.flush()
+
+from runtime_log import log, log_uncaught_exception
+
+sys.excepthook = log_uncaught_exception
+log(f"Application started, PID={os.getpid()}")
+
+from maix import app, camera, err, nn, pinmap, uart, http, image
+
 import math
+import os
 
 from vision_pb2 import (
     TELETUBBY_TYPE_GREEN,
@@ -11,17 +26,32 @@ from vision_pb2 import (
     TELETUBBY_TYPE_YELLOW,
     TeletubbyDetection,
 )
+
 from uart import UartLink
 
-MODEL_PATH = "/root/models/teletubby.mud"
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(APP_DIR, "model", "yolo26n.mud")
+
 LABEL_TO_TELETUBBY_TYPE = {
     "Red Teletubby": TELETUBBY_TYPE_RED,
     "Green Teletubby": TELETUBBY_TYPE_GREEN,
     "Yellow Teletubby": TELETUBBY_TYPE_YELLOW,
     "Purple Teletubby": TELETUBBY_TYPE_PURPLE,
 }
+
+LABEL_TO_PREVIEW_COLOR = {
+    "Red Teletubby": image.COLOR_RED,
+    "Green Teletubby": image.COLOR_GREEN,
+    "Yellow Teletubby": image.COLOR_YELLOW,
+    "Purple Teletubby": image.COLOR_PURPLE,
+}
+
 CONFIDENCE_THRESHOLD = 0.50
 IOU_THRESHOLD = 0.45
+
+PREVIEW_INTERVAL = 4
+JPEG_QUALITY = 70
+
 
 err.check_raise(
     pinmap.set_pin_function("A19", "UART1_TX"), "Failed to configure UART TX"
@@ -94,8 +124,46 @@ def best_teletubby(detections, class_types):
     return max(matching, key=lambda item: item.score, default=None)
 
 
+def draw_preview(frame, detector, detection):
+    if detection is None:
+        frame.draw_string(
+            4,
+            4,
+            "No Teletubby",
+            color=image.COLOR_RED,
+        )
+        return
+
+    box = clipped_box(detection, frame.width(), frame.height())
+    if box is None:
+        return
+
+    x, y, width, height = box
+    label = detector.labels[detection.class_id]
+    color = LABEL_TO_PREVIEW_COLOR[label]
+
+    frame.draw_rect(
+        x,
+        y,
+        width,
+        height,
+        color=color,
+        thickness=2,
+    )
+
+    frame.draw_string(
+        x,
+        max(0, y - 16),
+        f"{label}: {detection.score:.2f}",
+        color=color,
+    )
+
+
 def main():
-    detector = nn.YOLO11(MODEL_PATH, dual_buff=False)
+    log("Waiting for boot networking")
+    time.sleep(8)
+
+    detector = nn.YOLO26(MODEL_PATH, dual_buff=True)
     cam = camera.Camera(
         detector.input_width(), detector.input_height(), detector.input_format()
     )
@@ -104,10 +172,20 @@ def main():
     link = UartLink(serial)
     frame_sequence = 1
 
+    log("Creating HTTP streamer")
+    stream = http.JpegStreamer("0.0.0.0", 8000)
+
+    result = stream.start()
+    log(f"stream.start result={result}, " f"host={stream.host()}, port={stream.port()}")
+    err.check_raise(result, "Failed to start HTTP streamer")
+
+    log("HTTP streamer started")
+    log(f"Preview: http://{stream.host()}:{stream.port()}")
+
     while not app.need_exit():
-        image = cam.read()
+        frame = cam.read()
         detections = detector.detect(
-            image,
+            frame,
             conf_th=CONFIDENCE_THRESHOLD,
             iou_th=IOU_THRESHOLD,
         )
@@ -126,6 +204,16 @@ def main():
             teletubby_type,
         )
         link.send(payload)
+        frame_sequence = 1 if frame_sequence == 0xFFFFFFFF else frame_sequence + 1
+
+        # Show the annotated frame in MaixVision when connected.
+        if frame_sequence % PREVIEW_INTERVAL == 0:
+            draw_preview(frame, detector, detection)
+            # display.send_to_maixvision(frame)
+
+            jpg = frame.to_jpeg(quality=JPEG_QUALITY)
+            stream.write(jpg)
+
         frame_sequence = 1 if frame_sequence == 0xFFFFFFFF else frame_sequence + 1
 
 
