@@ -171,6 +171,7 @@ def main():
     class_types = target_class_types(detector)
     link = UartLink(serial)
     frame_sequence = 1
+    uart_frames_sent = 0
 
     log("Creating HTTP streamer")
     stream = http.JpegStreamer("0.0.0.0", 8000)
@@ -204,6 +205,17 @@ def main():
             teletubby_type,
         )
         link.send(payload)
+        uart_frames_sent += 1
+        if uart_frames_sent % 120 == 0:
+            label = (
+                detector.labels[detection.class_id]
+                if detection is not None
+                else "none"
+            )
+            log(
+                f"UART sent frames={uart_frames_sent}, payload_bytes={len(payload)}, "
+                f"detection={label}"
+            )
         frame_sequence = 1 if frame_sequence == 0xFFFFFFFF else frame_sequence + 1
 
         # Show the annotated frame in MaixVision when connected.
@@ -213,8 +225,6 @@ def main():
 
             jpg = frame.to_jpeg(quality=JPEG_QUALITY)
             stream.write(jpg)
-
-        frame_sequence = 1 if frame_sequence == 0xFFFFFFFF else frame_sequence + 1
 
 
 if __name__ == "__main__":
