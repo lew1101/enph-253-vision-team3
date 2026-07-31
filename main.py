@@ -168,6 +168,8 @@ def main():
         detector.input_width(), detector.input_height(), detector.input_format()
     )
 
+    cam.vflip(1)  # flip vertically
+
     class_types = target_class_types(detector)
     link = UartLink(serial)
     frame_sequence = 1
@@ -208,9 +210,7 @@ def main():
         uart_frames_sent += 1
         if uart_frames_sent % 120 == 0:
             label = (
-                detector.labels[detection.class_id]
-                if detection is not None
-                else "none"
+                detector.labels[detection.class_id] if detection is not None else "none"
             )
             log(
                 f"UART sent frames={uart_frames_sent}, payload_bytes={len(payload)}, "
